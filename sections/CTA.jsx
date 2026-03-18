@@ -1,17 +1,30 @@
 import { useState } from 'react'
-import { ArrowRight, Upload, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Upload, CheckCircle2, Loader2 } from 'lucide-react'
+import { salvarDiagnostico } from '../lib/supabase'
 
 export default function CTA() {
   const [form, setForm] = useState({ nome: '', empresa: '', email: '', telefone: '', setor: '', mensagem: '' })
   const [enviado, setEnviado] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState('')
 
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    setEnviado(true)
+    setLoading(true)
+    setErro('')
+    try {
+      await salvarDiagnostico(form)
+      setEnviado(true)
+    } catch (err) {
+      console.error(err)
+      setErro('Erro ao enviar. Tente novamente ou entre em contato por e-mail.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -55,6 +68,8 @@ export default function CTA() {
             ) : (
               <form className="cta-section__form" onSubmit={handleSubmit}>
                 <h3 className="cta-section__form-title">Solicitar diagnóstico gratuito</h3>
+
+                {erro && <div className="form-erro">{erro}</div>}
 
                 <div className="form-row">
                   <div className="form-group">
@@ -105,8 +120,10 @@ export default function CTA() {
                   </label>
                 </div>
 
-                <button type="submit" className="btn btn--primary btn--full">
-                  Solicitar diagnóstico gratuito <ArrowRight size={18} />
+                <button type="submit" className="btn btn--primary btn--full" disabled={loading}>
+                  {loading
+                    ? <><Loader2 size={18} className="spin" /> Enviando...</>
+                    : <>Solicitar diagnóstico gratuito <ArrowRight size={18} /></>}
                 </button>
 
                 <p className="form-disclaimer">
