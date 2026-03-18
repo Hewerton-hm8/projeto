@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { MessageCircle, X, Send, Loader, Bot, User, Paperclip, FileText, Image } from 'lucide-react'
 
-const N8N_WEBHOOK_URL = 'https://n8n.damaral.ia.br/webhook-test/c449b664-a748-49ba-9a59-961d00d68ab0'
+const N8N_WEBHOOK_URL = 'https://n8n.damaral.ia.br/webhook/c449b664-a748-49ba-9a59-961d00d68ab0'
 
 export default function Chatbot() {
   const [open, setOpen] = useState(false)
