@@ -3,6 +3,15 @@ import { MessageCircle, X, Send, Loader, Bot, User, Paperclip, FileText, Image }
 
 const N8N_WEBHOOK_URL = 'https://n8n.damaral.ia.br/webhook/c449b664-a748-49ba-9a59-961d00d68ab0'
 
+function getSessionId() {
+  let id = sessionStorage.getItem('chatbot_session_id')
+  if (!id) {
+    id = crypto.randomUUID()
+    sessionStorage.setItem('chatbot_session_id', id)
+  }
+  return id
+}
+
 export default function Chatbot() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([
@@ -57,16 +66,18 @@ export default function Chatbot() {
 
     try {
       let res
+      const sessionId = getSessionId()
       if (currentFile) {
         const formData = new FormData()
         formData.append('chatInput', text)
+        formData.append('sessionId', sessionId)
         formData.append('data', currentFile)
         res = await fetch(N8N_WEBHOOK_URL, { method: 'POST', body: formData })
       } else {
         res = await fetch(N8N_WEBHOOK_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chatInput: text }),
+          body: JSON.stringify({ chatInput: text, sessionId }),
         })
       }
 
