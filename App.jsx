@@ -1,5 +1,6 @@
 import './index.css'
 import Navbar from './components/Navbar'
+import Chatbot from './components/Chatbot'
 import Hero from './sections/Hero'
 import Stats from './sections/Stats'
 import Solucoes from './sections/Solucoes'
@@ -25,6 +26,7 @@ export default function App() {
         <CTA />
       </main>
       <Footer />
+      <Chatbot />
     </>
   )
 }
