@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { ArrowRight, Upload, CheckCircle2, Loader2 } from 'lucide-react'
-import { salvarDiagnostico } from '../lib/supabase'
+import { salvarDiagnostico, uploadFatura, atualizarFaturaUrl } from '../lib/supabase'
 
 export default function CTA() {
   const [form, setForm] = useState({ nome: '', empresa: '', email: '', telefone: '', setor: '', mensagem: '' })
+  const [fatura, setFatura] = useState(null)
   const [enviado, setEnviado] = useState(false)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
@@ -12,12 +13,20 @@ export default function CTA() {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
   }
 
+  function handleFatura(e) {
+    setFatura(e.target.files[0] || null)
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
     setErro('')
     try {
-      await salvarDiagnostico(form)
+      const diagnostico = await salvarDiagnostico(form)
+      if (fatura) {
+        const url = await uploadFatura(fatura, diagnostico.id)
+        await atualizarFaturaUrl(diagnostico.id, url)
+      }
       setEnviado(true)
     } catch (err) {
       console.error(err)
@@ -115,8 +124,8 @@ export default function CTA() {
                 <div className="form-group">
                   <label className="form-upload">
                     <Upload size={16} />
-                    <span>Anexar conta de energia (opcional)</span>
-                    <input type="file" accept=".pdf,.jpg,.png" style={{ display: 'none' }} />
+                    <span>{fatura ? fatura.name : 'Anexar conta de energia (opcional)'}</span>
+                    <input type="file" accept=".pdf,.jpg,.png" style={{ display: 'none' }} onChange={handleFatura} />
                   </label>
                 </div>
 
