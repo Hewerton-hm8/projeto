@@ -60,7 +60,7 @@ export default function Chatbot() {
       if (currentFile) {
         const formData = new FormData()
         formData.append('chatInput', text)
-        formData.append('file', currentFile)
+        formData.append('data', currentFile)
         res = await fetch(N8N_WEBHOOK_URL, { method: 'POST', body: formData })
       } else {
         res = await fetch(N8N_WEBHOOK_URL, {
