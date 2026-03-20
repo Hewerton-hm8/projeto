@@ -1,7 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
-import { MessageCircle, X, Send, Loader, Bot, User, Paperclip, FileText, Image } from 'lucide-react'
+import { MessageCircle, X, Send, Loader, Bot, User, Paperclip, FileText, Zap, BarChart3, Battery } from 'lucide-react'
 
 const N8N_WEBHOOK_URL = 'https://n8n.damaral.ia.br/webhook/c449b664-a748-49ba-9a59-961d00d68ab0'
+
+const QUICK_ACTIONS = [
+  { icon: Zap, label: 'Como reduzir minha conta de energia?' },
+  { icon: BarChart3, label: 'O que é peak shaving?' },
+  { icon: Battery, label: 'Como funciona o BESS?' },
+]
 
 function getSessionId() {
   let id = sessionStorage.getItem('chatbot_session_id')
@@ -14,18 +20,15 @@ function getSessionId() {
 
 export default function Chatbot() {
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      text: 'Olá! Sou a IA da GoNova 🤖\nPosso te ajudar com dúvidas sobre BESS, contas de energia, peak shaving e nossas soluções. Como posso ajudar?',
-    },
-  ])
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [file, setFile] = useState(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const fileRef = useRef(null)
+
+  const hasMessages = messages.length > 0
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -49,6 +52,15 @@ export default function Chatbot() {
   function removeFile() {
     setFile(null)
     if (fileRef.current) fileRef.current.value = ''
+  }
+
+  function handleQuickAction(text) {
+    const fakeEvent = { preventDefault: () => {} }
+    setInput(text)
+    setTimeout(() => {
+      const form = document.querySelector('.chatbot__input-bar')
+      if (form) form.requestSubmit()
+    }, 50)
   }
 
   async function handleSend(e) {
@@ -105,69 +117,108 @@ export default function Chatbot() {
         onClick={() => setOpen(!open)}
         aria-label={open ? 'Fechar chat' : 'Abrir chat'}
       >
-        {open ? <X size={24} /> : <MessageCircle size={24} />}
+        <span className="chatbot__fab-icon chatbot__fab-icon--chat">
+          <MessageCircle size={28} />
+        </span>
+        <span className="chatbot__fab-icon chatbot__fab-icon--close">
+          <X size={28} />
+        </span>
+        {!open && <span className="chatbot__fab-pulse" />}
       </button>
 
       {/* Janela do chat */}
       {open && (
         <div className="chatbot">
+          {/* Header com gradiente */}
           <div className="chatbot__header">
-            <div className="chatbot__header-info">
-              <div className="chatbot__avatar">
-                <Bot size={18} />
-              </div>
-              <div>
-                <div className="chatbot__header-title">GoNova IA</div>
-                <div className="chatbot__header-status">
-                  <span className="chatbot__status-dot" />
-                  Online
+            <div className="chatbot__header-bg" />
+            <div className="chatbot__header-content">
+              <div className="chatbot__header-info">
+                <div className="chatbot__avatar">
+                  <img src="/logo-gonova.png" alt="GoNova" width="36" height="36" />
+                </div>
+                <div>
+                  <div className="chatbot__header-title">GoNova IA</div>
+                  <div className="chatbot__header-status">
+                    <span className="chatbot__status-dot" />
+                    Online agora
+                  </div>
                 </div>
               </div>
+              <button className="chatbot__close" onClick={() => setOpen(false)} aria-label="Fechar chat">
+                <X size={20} />
+              </button>
             </div>
-            <button className="chatbot__close" onClick={() => setOpen(false)} aria-label="Fechar chat">
-              <X size={18} />
-            </button>
           </div>
 
-          <div className="chatbot__messages">
-            {messages.map((msg, i) => (
-              <div key={i} className={`chatbot__msg chatbot__msg--${msg.role}`}>
-                <div className="chatbot__msg-icon">
-                  {msg.role === 'assistant' ? <Bot size={14} /> : <User size={14} />}
+          {/* Área de mensagens */}
+          <div className="chatbot__body">
+            {!hasMessages ? (
+              <div className="chatbot__welcome">
+                <div className="chatbot__welcome-avatar">
+                  <img src="/logo-gonova.png" alt="GoNova" width="52" height="52" />
                 </div>
-                <div className="chatbot__msg-bubble">
-                  {msg.file && (
-                    <div className="chatbot__msg-file">
-                      <FileText size={13} />
-                      <span>{msg.file}</span>
-                    </div>
-                  )}
-                  {msg.text && msg.text.split('\n').map((line, j) => (
-                    <span key={j}>
-                      {line}
-                      {j < msg.text.split('\n').length - 1 && <br />}
-                    </span>
+                <h3 className="chatbot__welcome-title">Olá! Sou a IA da GoNova 👋</h3>
+                <p className="chatbot__welcome-text">
+                  Posso te ajudar com dúvidas sobre BESS, contas de energia, peak shaving e nossas soluções.
+                </p>
+                <div className="chatbot__quick-actions">
+                  {QUICK_ACTIONS.map((action, i) => (
+                    <button
+                      key={i}
+                      className="chatbot__quick-btn"
+                      onClick={() => handleQuickAction(action.label)}
+                      type="button"
+                    >
+                      <action.icon size={15} />
+                      <span>{action.label}</span>
+                    </button>
                   ))}
                 </div>
               </div>
-            ))}
+            ) : (
+              <div className="chatbot__messages">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`chatbot__msg chatbot__msg--${msg.role}`}>
+                    <div className="chatbot__msg-icon">
+                      {msg.role === 'assistant' ? <Bot size={15} /> : <User size={15} />}
+                    </div>
+                    <div className="chatbot__msg-bubble">
+                      {msg.file && (
+                        <div className="chatbot__msg-file">
+                          <FileText size={13} />
+                          <span>{msg.file}</span>
+                        </div>
+                      )}
+                      {msg.text && msg.text.split('\n').map((line, j) => (
+                        <span key={j}>
+                          {line}
+                          {j < msg.text.split('\n').length - 1 && <br />}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
 
-            {loading && (
-              <div className="chatbot__msg chatbot__msg--assistant">
-                <div className="chatbot__msg-icon">
-                  <Bot size={14} />
-                </div>
-                <div className="chatbot__msg-bubble chatbot__msg-bubble--typing">
-                  <span className="chatbot__typing-dot" />
-                  <span className="chatbot__typing-dot" />
-                  <span className="chatbot__typing-dot" />
-                </div>
+                {loading && (
+                  <div className="chatbot__msg chatbot__msg--assistant">
+                    <div className="chatbot__msg-icon">
+                      <Bot size={15} />
+                    </div>
+                    <div className="chatbot__msg-bubble chatbot__msg-bubble--typing">
+                      <span className="chatbot__typing-dot" />
+                      <span className="chatbot__typing-dot" />
+                      <span className="chatbot__typing-dot" />
+                    </div>
+                  </div>
+                )}
+
+                <div ref={bottomRef} />
               </div>
             )}
-
-            <div ref={bottomRef} />
           </div>
 
+          {/* Preview de arquivo */}
           {file && (
             <div className="chatbot__file-preview">
               <div className="chatbot__file-info">
@@ -180,6 +231,7 @@ export default function Chatbot() {
             </div>
           )}
 
+          {/* Barra de input */}
           <form className="chatbot__input-bar" onSubmit={handleSend}>
             <input
               ref={fileRef}
@@ -202,7 +254,7 @@ export default function Chatbot() {
               ref={inputRef}
               className="chatbot__input"
               type="text"
-              placeholder="Digite sua dúvida..."
+              placeholder="Digite sua mensagem..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={loading}
@@ -211,6 +263,11 @@ export default function Chatbot() {
               {loading ? <Loader size={18} className="spin" /> : <Send size={18} />}
             </button>
           </form>
+
+          {/* Footer */}
+          <div className="chatbot__footer">
+            Powered by <strong>GoNova IA</strong>
+          </div>
         </div>
       )}
     </>
