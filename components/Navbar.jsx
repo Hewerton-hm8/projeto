@@ -24,17 +24,7 @@ export default function Navbar() {
     <nav className={`navbar ${scrolled ? 'navbar--scrolled' : ''}`}>
       <a href="#" className="navbar__logo">
         <div className="navbar__logo-mark">
-          <svg viewBox="0 0 40 40" fill="none">
-            <defs>
-              <linearGradient id="lg1" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#9CFF00" />
-                <stop offset="100%" stopColor="#0057FF" />
-              </linearGradient>
-            </defs>
-            <rect width="40" height="40" rx="10" fill="url(#lg1)" />
-            <path d="M10 28 L20 12 L30 28" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            <path d="M15 22 L25 22" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
-          </svg>
+          <img src="/logo-gonova.png" alt="GoNova" width="40" height="40" />
         </div>
         <span className="navbar__logo-text">
           Go<span>Nova</span>
