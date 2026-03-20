@@ -3,7 +3,12 @@ import { Linkedin, Instagram, Mail, Phone, MapPin } from 'lucide-react'
 const LINKS = {
   Soluções: ['BESS & Estratégia', 'IA & Monitoramento', 'Microredes Off-grid', 'Mobilidade Elétrica', 'Gestão Energética', 'Descarbonização'],
   Empresa: ['Sobre a GoNova', 'Casos de Sucesso', 'Blog & Insights', 'Parceiros', 'Carreiras'],
-  Suporte: ['Diagnóstico Gratuito', 'Contato', 'Política de Privacidade', 'Termos de Uso'],
+  Suporte: [
+    { label: 'Diagnóstico Gratuito', href: '#contato' },
+    { label: 'Contato', href: '#contato' },
+    { label: 'Política de Privacidade', href: 'https://docs.google.com/document/d/1gqPPmyCuze_7tS6leL7ZLKj15DNfnImvKLsGJmCR75w/edit?usp=sharing' },
+    { label: 'Termos de Uso', href: 'https://docs.google.com/document/d/16J8Zxo8lafMY8mueOeD3S8B7lWAMMctziIBcO9W669s/edit?usp=sharing' },
+  ],
 }
 
 export default function Footer() {
@@ -32,9 +37,17 @@ export default function Footer() {
             <div key={grupo} className="footer__col">
               <h4 className="footer__col-title">{grupo}</h4>
               <ul>
-                {items.map(item => (
-                  <li key={item}><a href="#" className="footer__link">{item}</a></li>
-                ))}
+                {items.map(item => {
+                  const isObj = typeof item === 'object'
+                  const label = isObj ? item.label : item
+                  const href = isObj ? item.href : '#'
+                  const external = isObj && item.href.startsWith('http')
+                  return (
+                    <li key={label}>
+                      <a href={href} className="footer__link" {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{label}</a>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ))}
@@ -42,10 +55,9 @@ export default function Footer() {
           <div className="footer__col">
             <h4 className="footer__col-title">Contato</h4>
             <ul className="footer__contact">
-              <li><Phone size={14} /> +55 (11) 4000-0000</li>
-              <li><Mail size={14} /> contato@gonova.com.br</li>
-              <li><MapPin size={14} /> São Paulo, SP — Brasil</li>
-              <li><MapPin size={14} /> Assunção — Paraguai</li>
+              <li><Phone size={14} /> <a href="tel:+5567999233615">+55 67 9923-3615</a></li>
+              <li><Mail size={14} /> <a href="mailto:contato@gonova.com.br">contato@gonova.com.br</a></li>
+              <li><MapPin size={14} /> Campo Grande, MS — Brasil</li>
             </ul>
           </div>
         </div>
