@@ -1,0 +1,257 @@
+{
+  "name": "Energisa - Faturas IMAP -> Supabase Storage",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "downloadAttachments": true,
+        "format": "resolved",
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "forceReconnect": 60,
+          "customEmailConfig": "[\"UNSEEN\", [\"FROM\", \"energisa\"]]"
+        }
+      },
+      "id": "imap-trigger",
+      "name": "IMAP - Novos Emails",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        240,
+        320
+      ],
+      "credentials": {
+        "imap": {
+          "id": "imap-credentials",
+          "name": "IMAP Caixa Faturas"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-energisa",
+              "leftValue": "={{ $json.from || ($json.headers && $json.headers.from) || '' }}",
+              "rightValue": "(?i)faturas?[a-z0-9_\\-]*@.*energisa",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-energisa",
+      "name": "Filtra Remetente Energisa",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        460,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Itera sobre cada email recebido e cria um item por anexo PDF\nconst results = [];\n\nfor (const item of $input.all()) {\n  const binary = item.binary || {};\n  const meta = {\n    from: item.json.from || (item.json.headers && item.json.headers.from) || '',\n    subject: item.json.subject || (item.json.headers && item.json.headers.subject) || '',\n    date: item.json.date || (item.json.headers && item.json.headers.date) || '',\n    messageId: item.json.messageId || '',\n  };\n\n  for (const key of Object.keys(binary)) {\n    const b = binary[key];\n    if (!b) continue;\n    const name = (b.fileName || '').toLowerCase();\n    const mime = (b.mimeType || '').toLowerCase();\n    const isPdf = mime === 'application/pdf' || name.endsWith('.pdf');\n    if (!isPdf) continue;\n\n    results.push({\n      json: {\n        ...meta,\n        originalFileName: b.fileName || 'fatura.pdf',\n      },\n      binary: {\n        data: b,\n      },\n      pairedItem: { item: 0 },\n    });\n  }\n}\n\nif (results.length === 0) {\n  return [];\n}\nreturn results;"
+      },
+      "id": "split-pdfs",
+      "name": "Extrai Anexos PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "pdf-extract",
+      "name": "Le PDF da Fatura",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        900,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai CLIENTE, UNIDADE CONSUMIDORA e MES de REFERENCIA do texto da fatura Energisa\n// e monta o caminho de armazenamento no Supabase: CLIENTE/UC/FATURA-MES.pdf\n\nconst MESES_PT = {\n  JAN: '01', FEV: '02', MAR: '03', ABR: '04', MAI: '05', JUN: '06',\n  JUL: '07', AGO: '08', SET: '09', OUT: '10', NOV: '11', DEZ: '12',\n};\n\nfunction sanitize(str, max = 80) {\n  return (str || 'DESCONHECIDO')\n    .toString()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^A-Za-z0-9\\-]+/g, '_')\n    .replace(/^_+|_+$/g, '')\n    .replace(/_+/g, '_')\n    .toUpperCase()\n    .slice(0, max) || 'DESCONHECIDO';\n}\n\nfunction normalizarMes(raw) {\n  if (!raw) return null;\n  const s = raw.toString().trim().toUpperCase();\n  // formato MM/AAAA\n  let m = s.match(/^(\\d{2})\\/(\\d{4})$/);\n  if (m) return `${m[2]}-${m[1]}`;\n  // formato NOME/AAAA (JAN/2026)\n  m = s.match(/^([A-Z]{3,})[\\/\\- ](\\d{4})$/);\n  if (m) {\n    const mm = MESES_PT[m[1].slice(0, 3)];\n    if (mm) return `${m[2]}-${mm}`;\n  }\n  // formato NOME AAAA\n  m = s.match(/^([A-Z]{3,})\\s*(\\d{4})$/);\n  if (m) {\n    const mm = MESES_PT[m[1].slice(0, 3)];\n    if (mm) return `${m[2]}-${mm}`;\n  }\n  return null;\n}\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const text = (item.json.text || '').replace(/\\r/g, '');\n\n  // CLIENTE / Razao social\n  let cliente = null;\n  const regexesCliente = [\n    /NOME\\s*\\/?\\s*RAZ[ÃA]O\\s*SOCIAL[:\\s]+([^\\n]+)/i,\n    /RAZ[ÃA]O\\s*SOCIAL[:\\s]+([^\\n]+)/i,\n    /CLIENTE[:\\s]+([^\\n]+)/i,\n    /NOME[:\\s]+([^\\n]+)/i,\n  ];\n  for (const r of regexesCliente) {\n    const m = text.match(r);\n    if (m && m[1]) { cliente = m[1].trim(); break; }\n  }\n\n  // UNIDADE CONSUMIDORA\n  let uc = null;\n  const regexesUC = [\n    /UNIDADE\\s*CONSUMIDORA[:\\s\\-Nn°ºo\\.]*([0-9]{5,})/i,\n    /N[ºo°]?\\s*DA\\s*INSTALA[CÇ][AÃ]O[:\\s]*([0-9]{5,})/i,\n    /INSTALA[CÇ][AÃ]O[:\\s]*([0-9]{5,})/i,\n    /\\bUC[:\\s\\-Nn°º]*([0-9]{5,})/i,\n  ];\n  for (const r of regexesUC) {\n    const m = text.match(r);\n    if (m && m[1]) { uc = m[1].trim(); break; }\n  }\n\n  // MES DE REFERENCIA\n  let mesRaw = null;\n  const regexesMes = [\n    /M[ÊE]S\\s*(?:DE)?\\s*REFER[ÊE]NCIA[:\\s]+([A-Z]{3,}[\\/\\- ]\\d{4}|\\d{2}\\/\\d{4})/i,\n    /REFER[ÊE]NCIA[:\\s]+([A-Z]{3,}[\\/\\- ]\\d{4}|\\d{2}\\/\\d{4})/i,\n    /COMPET[ÊE]NCIA[:\\s]+([A-Z]{3,}[\\/\\- ]\\d{4}|\\d{2}\\/\\d{4})/i,\n  ];\n  for (const r of regexesMes) {\n    const m = text.match(r);\n    if (m && m[1]) { mesRaw = m[1].trim(); break; }\n  }\n\n  const mesNorm = normalizarMes(mesRaw) || new Date().toISOString().slice(0, 7);\n\n  const clienteSan = sanitize(cliente);\n  const ucSan = sanitize(uc);\n  const mesSan = mesNorm.replace(/[^0-9\\-]/g, '');\n\n  const path = `${clienteSan}/${ucSan}/FATURA-${mesSan}.pdf`;\n\n  results.push({\n    json: {\n      cliente: clienteSan,\n      unidade_consumidora: ucSan,\n      mes_referencia: mesSan,\n      path,\n      originalFileName: item.json.originalFileName,\n      from: item.json.from,\n      subject: item.json.subject,\n      date: item.json.date,\n    },\n    binary: item.binary,\n  });\n}\n\nreturn results;"
+      },
+      "id": "parse-invoice",
+      "name": "Extrai Cliente / UC / Mes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/faturas/{{ encodeURI($json.path) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/pdf"
+            },
+            {
+              "name": "x-upsert",
+              "value": "true"
+            },
+            {
+              "name": "cache-control",
+              "value": "3600"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "upload-supabase",
+      "name": "Upload Supabase Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loga resultado do upload com o caminho final\nconst results = [];\nfor (const item of $input.all()) {\n  results.push({\n    json: {\n      ok: true,\n      path: item.json.Key || item.json.path || null,\n      cliente: item.json.cliente,\n      unidade_consumidora: item.json.unidade_consumidora,\n      mes_referencia: item.json.mes_referencia,\n      originalFileName: item.json.originalFileName,\n      publicUrl: `${$env.SUPABASE_URL}/storage/v1/object/public/faturas/${encodeURI(item.json.path || '')}`,\n    },\n  });\n}\nreturn results;"
+      },
+      "id": "log-result",
+      "name": "Log do Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "IMAP - Novos Emails": {
+      "main": [
+        [
+          {
+            "node": "Filtra Remetente Energisa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtra Remetente Energisa": {
+      "main": [
+        [
+          {
+            "node": "Extrai Anexos PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrai Anexos PDF": {
+      "main": [
+        [
+          {
+            "node": "Le PDF da Fatura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Le PDF da Fatura": {
+      "main": [
+        [
+          {
+            "node": "Extrai Cliente / UC / Mes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrai Cliente / UC / Mes": {
+      "main": [
+        [
+          {
+            "node": "Upload Supabase Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Supabase Storage": {
+      "main": [
+        [
+          {
+            "node": "Log do Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 1,
+  "tags": [
+    {
+      "name": "energisa"
+    },
+    {
+      "name": "faturas"
+    }
+  ]
+}
